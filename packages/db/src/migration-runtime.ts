@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -74,6 +75,28 @@ async function findAvailablePort(startPort: number): Promise<number> {
   throw new Error(
     `Embedded PostgreSQL could not find a free port from ${startPort} to ${startPort + maxLookahead - 1}`,
   );
+}
+
+// On Windows, pg_ctl stop exits after signalling the postmaster, but worker
+// processes become orphans and hold the shared-memory handle long enough to
+// block the next startup with "pre-existing shared memory block is still in use".
+// Kill any user-owned postgres processes whose parent is already dead before
+// attempting to start a new cluster.
+async function killOrphanedPostgresWorkers(): Promise<void> {
+  if (process.platform !== "win32") return;
+  const script = `
+    Get-WmiObject Win32_Process | Where-Object { $_.Name -like '*postgres*' } | ForEach-Object {
+      $owner = ($_.GetOwner()).User
+      $parentAlive = Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue
+      if ($owner -and -not $parentAlive) {
+        taskkill /F /PID $_.ProcessId 2>$null | Out-Null
+      }
+    }
+  `;
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  spawnSync("powershell.exe", ["-NonInteractive", "-EncodedCommand", encoded], { timeout: 8_000 });
+  // Give Windows a moment to release the shared-memory handles.
+  await new Promise<void>((resolve) => setTimeout(resolve, 300));
 }
 
 async function loadEmbeddedPostgresCtor(): Promise<EmbeddedPostgresCtor> {
@@ -159,6 +182,7 @@ async function ensureEmbeddedPostgresConnection(
   if (existsSync(postmasterPidFile)) {
     rmSync(postmasterPidFile, { force: true });
   }
+  await killOrphanedPostgresWorkers();
   try {
     await instance.start();
   } catch (error) {
