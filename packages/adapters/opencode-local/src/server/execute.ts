@@ -189,7 +189,16 @@ async function buildOpenCodeSkillsDir(config: Record<string, unknown>): Promise<
   const desiredNames = new Set(resolvePaperclipDesiredSkillNames(config, availableEntries));
   for (const entry of availableEntries) {
     if (!desiredNames.has(entry.key)) continue;
-    await fs.symlink(entry.source, path.join(target, entry.runtimeName));
+    const linkTarget = path.join(target, entry.runtimeName);
+    try {
+      await fs.symlink(entry.source, linkTarget);
+    } catch (err: any) {
+      if (err.code === "EPERM") {
+        await fs.cp(entry.source, linkTarget, { recursive: true });
+      } else {
+        throw err;
+      }
+    }
   }
   return target;
 }
@@ -297,7 +306,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (!hasExplicitApiKey && authToken) {
     env.PAPERCLIP_API_KEY = authToken;
   }
-  const preparedRuntimeConfig = await prepareOpenCodeRuntimeConfig({ env, config });
+  const preparedRuntimeConfig = await prepareOpenCodeRuntimeConfig({ env, config, targetIsRemote: executionTargetIsRemote });
   const localRuntimeConfigHome =
     preparedRuntimeConfig.notes.length > 0 ? preparedRuntimeConfig.env.XDG_CONFIG_HOME : "";
   try {

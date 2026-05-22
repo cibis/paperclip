@@ -42,8 +42,8 @@ export function validateConfiguredBindMode(input: {
   const customBindHost = normalizeHost(input.customBindHost);
   const errors: string[] = [];
 
-  if (input.deploymentMode === "local_trusted" && bind !== "loopback") {
-    errors.push("local_trusted requires server.bind=loopback");
+  if (input.deploymentMode === "local_trusted" && bind !== "loopback" && bind !== "lan") {
+    errors.push("local_trusted requires server.bind=loopback or server.bind=lan");
   }
 
   if (bind === "custom" && !customBindHost) {

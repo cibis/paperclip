@@ -1142,7 +1142,7 @@ export async function startAdapterExecutionTargetPaperclipBridge(input: {
           method,
           headers,
           ...(method === "GET" || method === "HEAD" ? {} : { body: request.body }),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(1_500_000),
         });
         if (bridgeDebugEnabled) {
           await onLog(

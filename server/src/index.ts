@@ -187,6 +187,11 @@ export async function startServer(): Promise<StartedServer> {
     return normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1";
   }
 
+  function isAllInterfacesHost(host: string): boolean {
+    const normalized = host.trim().toLowerCase();
+    return normalized === "0.0.0.0" || normalized === "::";
+  }
+
   function rewriteLocalUrlPort(rawUrl: string | undefined, port: number): string | undefined {
     if (!rawUrl) return undefined;
     try {
@@ -444,10 +449,10 @@ export async function startServer(): Promise<StartedServer> {
     startupDbInfo = { mode: "embedded-postgres", dataDir, port };
   }
   
-  if (config.deploymentMode === "local_trusted" && !isLoopbackHost(config.host)) {
+  if (config.deploymentMode === "local_trusted" && !isLoopbackHost(config.host) && !isAllInterfacesHost(config.host)) {
     throw new Error(
-      `local_trusted mode requires loopback host binding (received: ${config.host}). ` +
-        "Use authenticated mode for non-loopback deployments.",
+      `local_trusted mode requires loopback or all-interfaces host binding (received: ${config.host}). ` +
+        "Use authenticated mode for non-loopback/non-LAN deployments.",
     );
   }
   
